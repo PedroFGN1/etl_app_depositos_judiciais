@@ -1,0 +1,22 @@
+# Dependências principais
+eel>=0.14.0
+pandas>=1.5.0
+sqlalchemy>=1.4.0
+openpyxl>=3.0.0
+psutil>=7.0.0
+
+# Drivers de banco de dados opcionais
+# Descomente conforme necessário:
+
+# PostgreSQL
+# psycopg2-binary>=2.9.0
+
+# MySQL
+# PyMySQL>=1.0.0
+
+# SQL Server
+# pyodbc>=4.0.0
+
+# Utilitários adicionais
+pathlib2>=2.3.0; python_version < "3.4"
+
