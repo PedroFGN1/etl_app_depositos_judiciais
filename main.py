@@ -1,157 +1,117 @@
 #!/usr/bin/env python3
 """
-Aplicação ETL - Arquivo Principal
+Aplicacao ETL - Arquivo Principal
 Sistema de processamento ETL com interface web usando Eel.
 """
 
 import sys
-import os
 from pathlib import Path
 
-# Adicionar o diretório do projeto ao path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-# Imports do projeto
 from backend.config import config
-from backend.logger import log_info, log_error, log_success
 from backend.eel_interface import start_eel_app
+from backend.logger import log_error, log_info
 
 
 def check_dependencies():
-    """Verifica se todas as dependências estão instaladas"""
-    required_packages = [
-        'eel',
-        'pandas', 
-        'sqlalchemy',
-        'openpyxl'  # Para suporte a Excel
-    ]
-    
+    """Verifica se todas as dependencias necessarias estao instaladas."""
+    required_packages = ["eel", "pandas", "sqlalchemy", "pdfplumber"]
     missing_packages = []
-    
+
     for package in required_packages:
         try:
             __import__(package)
         except ImportError:
             missing_packages.append(package)
-    
+
     if missing_packages:
-        log_error(f"Pacotes não encontrados: {', '.join(missing_packages)}")
+        log_error(f"Pacotes nao encontrados: {', '.join(missing_packages)}")
         log_info("Instale os pacotes com: pip install " + " ".join(missing_packages))
         return False
-    
+
     return True
 
 
 def setup_directories():
-    """Cria os diretórios necessários"""
+    """Cria os diretorios necessarios."""
     try:
-        directories = [
-            config.OUTPUT_PATH,
-            config.UPLOAD_FOLDER,
-            config.DATA_SAMPLES_PATH
-        ]
-        
+        directories = [config.OUTPUT_PATH, config.UPLOAD_FOLDER, config.DATA_SAMPLES_PATH]
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
-            log_info(f"Diretório verificado: {directory}")
-        
+            log_info(f"Diretorio verificado: {directory}")
         return True
-        
-    except Exception as e:
-        log_error(f"Erro ao criar diretórios: {str(e)}")
+    except Exception as exc:
+        log_error(f"Erro ao criar diretorios: {str(exc)}")
         return False
 
 
 def create_sample_files():
-    """Cria arquivos de exemplo se não existirem"""
+    """Verifica a existencia de um PDF de exemplo."""
     try:
-        sample_saldos = config.DATA_SAMPLES_PATH / "exemplo_saldos.csv"
-        sample_resgates = config.DATA_SAMPLES_PATH / "exemplo_resgates.csv"
-        
-        if not sample_saldos.exists():
-            sample_saldos_content = """Conta Judicial;Parcela;Saldo JANEIRO23;Saldo FEVEREIRO23;Saldo MARÇO23
-12345;1;R$ 1.000,50;R$ 1.100,75;R$ 1.200,00
-12346;1;R$ 2.500,00;R$ 2.600,25;R$ 2.700,50
-12347;2;R$ 500,75;R$ 550,80;R$ 600,90"""
-            
-            with open(sample_saldos, 'w', encoding='utf-8') as f:
-                f.write(sample_saldos_content)
-            
-            log_info(f"Arquivo de exemplo criado: {sample_saldos}")
-        
-        if not sample_resgates.exists():
-            sample_resgates_content = """Número da Conta Judicial;Número da Parcela;Número do Convênio de Repasse;DT_RSGT_DEP_JDCL;Competencia;Saldo Conta;Valor total resgatado
-12345;1;CONV001;2023-01-15;15/01/2023;R$ 1.000,50;R$ 100,00
-12346;1;CONV002;2023-02-20;20/02/2023;R$ 2.500,00;R$ 250,00
-12347;2;CONV003;2023-03-10;10/03/2023;R$ 500,75;R$ 50,00"""
-            
-            with open(sample_resgates, 'w', encoding='utf-8') as f:
-                f.write(sample_resgates_content)
-            
-            log_info(f"Arquivo de exemplo criado: {sample_resgates}")
-        
+        sample_pdf = config.DATA_SAMPLES_PATH / "extrato_exemplo_caixa.pdf"
+        if sample_pdf.exists():
+            log_info(f"Arquivo de exemplo encontrado: {sample_pdf}")
+        else:
+            log_info(
+                "Nenhum PDF de exemplo encontrado em data_samples. "
+                "Use um PDF real do usuario na interface."
+            )
         return True
-        
-    except Exception as e:
-        log_error(f"Erro ao criar arquivos de exemplo: {str(e)}")
+    except Exception as exc:
+        log_error(f"Erro ao verificar arquivos de exemplo: {str(exc)}")
         return False
 
 
 def main():
-    """Função principal da aplicação"""
+    """Funcao principal da aplicacao."""
     try:
         print("=" * 60)
-        print("    SISTEMA ETL - PROCESSAMENTO DE DADOS JUDICIAIS")
+        print("    SISTEMA ETL - PROCESSAMENTO DE EXTRATOS PDF")
         print("=" * 60)
         print()
-        
+
         log_info("Iniciando sistema ETL...")
-        
-        # Verificar dependências
-        log_info("Verificando dependências...")
+
+        log_info("Verificando dependencias...")
         if not check_dependencies():
-            log_error("Falha na verificação de dependências")
+            log_error("Falha na verificacao de dependencias")
             return 1
-        
-        # Configurar diretórios
-        log_info("Configurando diretórios...")
+
+        log_info("Configurando diretorios...")
         if not setup_directories():
-            log_error("Falha na configuração de diretórios")
+            log_error("Falha na configuracao de diretorios")
             return 1
-        
-        # Criar arquivos de exemplo
+
         log_info("Verificando arquivos de exemplo...")
         create_sample_files()
-        
-        # Exibir informações de configuração
-        log_info("Configurações do sistema:")
+
+        log_info("Configuracoes do sistema:")
         log_info(f"  - Tipo de banco: {config.database.db_type}")
-        log_info(f"  - Diretório de uploads: {config.UPLOAD_FOLDER}")
-        log_info(f"  - Diretório de saída: {config.OUTPUT_PATH}")
+        log_info(f"  - Diretorio de uploads: {config.UPLOAD_FOLDER}")
+        log_info(f"  - Diretorio de saida: {config.OUTPUT_PATH}")
         log_info(f"  - Host: {config.EEL_HOST}:{config.EEL_PORT}")
-        
+
         print()
-        print("Instruções de uso:")
+        print("Instrucoes de uso:")
         print("1. Acesse a interface web no navegador")
-        print("2. Faça upload dos arquivos de saldos e resgates")
+        print("2. Faca upload do PDF do extrato bancario")
         print("3. Clique em 'Iniciar Processamento ETL'")
         print("4. Acompanhe o progresso no terminal de logs")
         print()
-        print("Arquivos de exemplo disponíveis em:")
+        print("Arquivos de exemplo disponiveis em:")
         print(f"  - {config.DATA_SAMPLES_PATH}")
         print()
-        
-        # Iniciar aplicação Eel
+
         start_eel_app()
-        
         return 0
-        
+
     except KeyboardInterrupt:
-        log_info("Aplicação interrompida pelo usuário")
+        log_info("Aplicacao interrompida pelo usuario")
         return 0
-    except Exception as e:
-        log_error(f"Erro fatal na aplicação: {str(e)}")
+    except Exception as exc:
+        log_error(f"Erro fatal na aplicacao: {str(exc)}")
         return 1
 
 

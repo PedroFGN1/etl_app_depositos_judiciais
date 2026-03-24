@@ -3,6 +3,7 @@ eel>=0.14.0
 pandas>=1.5.0
 sqlalchemy>=1.4.0
 openpyxl>=3.0.0
+pdfplumber>=0.11.0
 psutil>=7.0.0
 
 # Drivers de banco de dados opcionais

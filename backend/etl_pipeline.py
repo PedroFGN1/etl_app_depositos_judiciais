@@ -1,226 +1,182 @@
 """
-Módulo Principal do Pipeline ETL
-Orquestra a execução do pipeline ETL completo.
+Modulo Principal do Pipeline ETL
+Orquestra a execucao do pipeline ETL completo para extrato PDF.
 """
 
-import pandas as pd
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict
 import traceback
 
+import pandas as pd
+
 from .config import config
-from .logger import log_info, log_error, log_success, log_warning, log_critical, etl_logger
-from .extractor import data_extractor, extract_data
-from .transformer import data_transformer
+from .extractor import DataExtractor
 from .loader import data_loader
+from .logger import etl_logger, log_critical, log_error, log_info, log_success
+from .rules_engine import RulesEngine
+from .transformer import DataTransformer
 
 
 class ETLPipeline:
-    """Classe principal que orquestra o pipeline ETL"""
-    
-    def __init__(self):
+    """Classe principal que orquestra o pipeline ETL do extrato PDF."""
+
+    TABLE_NAME = "Movimentacoes_Extrato"
+
+    def __init__(self) -> None:
         self.config = config
-        self.extractor = data_extractor
-        self.transformer = data_transformer
+        self.extractor = DataExtractor()
+        self.rules_engine = RulesEngine()
+        self.transformer = DataTransformer()
         self.loader = data_loader
         self.logger = etl_logger
-        
-        # Estado do pipeline
+
         self.current_step = None
         self.progress = 0
-        self.total_steps = 7
-        self.results = {}
-    
-    def update_progress(self, step: str, progress: int):
-        """Atualiza o progresso do pipeline"""
+        self.total_steps = 5
+        self.results: Dict[str, Any] = {}
+
+    def update_progress(self, step: str, progress: int) -> None:
+        """Atualiza o progresso do pipeline."""
         self.current_step = step
         self.progress = progress
         log_info(f"Progresso: {progress}/{self.total_steps} - {step}")
-    
-    def validate_input_files(self, saldos_path: str, resgates_path: str) -> bool:
-        """Valida os arquivos de entrada"""
         try:
-            log_info("Validando arquivos de entrada...")
-            
-            saldos_file = Path(saldos_path)
-            resgates_file = Path(resgates_path)
-            
-            # Verificar se os arquivos existem
-            if not saldos_file.exists():
-                log_error(f"Arquivo de saldos não encontrado: {saldos_path}")
-                return False
-            
-            if not resgates_file.exists():
-                log_error(f"Arquivo de resgates não encontrado: {resgates_path}")
-                return False
-            
-            # Verificar formatos
-            if not self.extractor.validate_file(saldos_file):
-                return False
-            
-            if not self.extractor.validate_file(resgates_file):
-                return False
-            
-            log_success("Validação dos arquivos concluída")
-            return True
-            
-        except Exception as e:
-            log_error("Erro na validação dos arquivos", str(e))
+            import eel
+
+            eel.update_progress_callback(
+                step, round((progress / self.total_steps) * 100, 1)
+            )
+        except Exception:
+            pass
+
+    def validate_input_file(self, pdf_path: str) -> bool:
+        """Valida o arquivo de entrada do extrato."""
+        try:
+            log_info("Validando arquivo PDF de entrada...")
+            pdf_file = Path(pdf_path)
+            is_valid = self.extractor.validate_file(pdf_file)
+            if is_valid:
+                log_success("Validacao do arquivo concluida com sucesso")
+            return is_valid
+        except Exception as exc:
+            log_error("Erro na validacao do arquivo", str(exc))
             return False
-    
-    def extract_phase(self, saldos_path: str, resgates_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """Fase de extração dos dados"""
-        try:
-            self.update_progress("Extraindo dados dos arquivos", 1)
-            
-            saldos_df, resgates_df = extract_data(Path(saldos_path), Path(resgates_path))
-            
-            # Armazenar informações sobre os dados extraídos
-            self.results['extraction'] = {
-                'saldos_rows': len(saldos_df),
-                'saldos_cols': len(saldos_df.columns),
-                'resgates_rows': len(resgates_df),
-                'resgates_cols': len(resgates_df.columns)
-            }
-            
-            log_success(f"Extração concluída - Saldos: {len(saldos_df)} linhas, Resgates: {len(resgates_df)} linhas")
-            return saldos_df, resgates_df
-            
-        except Exception as e:
-            log_error("Erro na fase de extração", str(e))
-            raise
-    
-    def transform_phase(self, saldos_df: pd.DataFrame, resgates_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-        """Fase de transformação dos dados"""
-        try:
-            self.update_progress("Transformando dados de saldos", 2)
-            saldos_transformed = self.transformer.transform_saldos(saldos_df)
-            
-            self.update_progress("Transformando dados de resgates", 3)
-            resgates_transformed = self.transformer.transform_resgates(resgates_df)
-            
-            self.update_progress("Criando dimensão de contas", 4)
-            dim_contas = self.transformer.create_dimension_contas(saldos_transformed, resgates_transformed)
-            
-            self.update_progress("Adicionando chaves estrangeiras", 5)
-            fact_saldos = self.transformer.add_foreign_keys(saldos_transformed, dim_contas)
-            fact_resgates = self.transformer.add_foreign_keys(resgates_transformed, dim_contas)
-            
-            # Armazenar informações sobre os dados transformados
-            self.results['transformation'] = {
-                'dim_contas_rows': len(dim_contas),
-                'fact_saldos_rows': len(fact_saldos),
-                'fact_resgates_rows': len(fact_resgates)
-            }
-            
-            transformed_data = {
-                self.config.TABLE_CONTAS: dim_contas,
-                self.config.TABLE_SALDOS: fact_saldos,
-                self.config.TABLE_RESGATES: fact_resgates
-            }
-            
-            log_success("Transformação concluída para todas as tabelas")
-            return transformed_data
-            
-        except Exception as e:
-            log_error("Erro na fase de transformação", str(e))
-            raise
-    
-    def load_phase(self, transformed_data: Dict[str, pd.DataFrame]) -> bool:
-        """Fase de carga dos dados"""
-        try:
-            self.update_progress("Carregando dados no banco", 6)
-            
-            # Testar conexão antes de carregar
-            if not self.loader.test_connection():
-                log_error("Falha na conexão com banco de dados")
-                return False
-            
-            # Carregar dados
-            load_results = self.loader.load_multiple_dataframes(transformed_data)
-            
-            # Verificar resultados
-            success_count = sum(1 for success in load_results.values() if success)
-            total_count = len(load_results)
-            
-            if success_count == total_count:
-                log_success("Todos os dados foram carregados com sucesso")
-                
-                # Obter estatísticas finais
-                stats = self.loader.get_database_stats()
-                self.results['load'] = {
-                    'tables_loaded': success_count,
-                    'total_records': stats.get('total_records', 0),
-                    'database_stats': stats
-                }
-                return True
-            else:
-                log_error(f"Falha na carga: {success_count}/{total_count} tabelas carregadas")
-                return False
-                
-        except Exception as e:
-            log_error("Erro na fase de carga", str(e))
+
+    def extract_phase(self, pdf_path: str) -> pd.DataFrame:
+        """Fase de extracao dos dados."""
+        self.update_progress("Extraindo movimentacoes do PDF", 2)
+        extracted_df = self.extractor.extract_file(Path(pdf_path))
+        self.results["extraction"] = {
+            "input_file": Path(pdf_path).name,
+            "rows": len(extracted_df),
+            "columns": len(extracted_df.columns),
+        }
+        return extracted_df
+
+    def transform_phase(
+        self, extracted_df: pd.DataFrame, rules_dict: Dict[str, str]
+    ) -> pd.DataFrame:
+        """Fase de transformacao dos dados."""
+        self.update_progress("Aplicando regras de negocio", 3)
+        transformed_df = self.transformer.apply_business_rules(extracted_df, rules_dict)
+        self.results["transformation"] = {
+            "rows": len(transformed_df),
+            "classified_rows": int(
+                (transformed_df["Natureza_Operacao"] != "Desconhecido").sum()
+            )
+            if not transformed_df.empty
+            else 0,
+            "unknown_rows": int(
+                (transformed_df["Natureza_Operacao"] == "Desconhecido").sum()
+            )
+            if not transformed_df.empty
+            else 0,
+        }
+        return transformed_df
+
+    def load_phase(self, transformed_df: pd.DataFrame) -> bool:
+        """Fase de carga dos dados."""
+        self.update_progress("Carregando movimentacoes no banco", 4)
+
+        if not self.loader.test_connection():
+            log_error("Falha na conexao com banco de dados")
             return False
-    
-    def run_pipeline(self, saldos_path: str, resgates_path: str) -> Dict[str, Any]:
-        """Executa o pipeline ETL completo"""
+
+        load_results = self.loader.load_multiple_dataframes(
+            {self.TABLE_NAME: transformed_df}
+        )
+        success = load_results.get(self.TABLE_NAME, False)
+        if not success:
+            return False
+
+        stats = self.loader.get_database_stats()
+        self.results["load"] = {
+            "tables_loaded": 1,
+            "table_name": self.TABLE_NAME,
+            "total_records": stats.get("tables", {})
+            .get(self.TABLE_NAME, {})
+            .get("rows", 0),
+            "database_stats": stats,
+        }
+        return True
+
+    def run_pipeline(self, pdf_path: str) -> Dict[str, Any]:
+        """Executa o pipeline ETL completo."""
         try:
-            log_info("=== INICIANDO PIPELINE ETL ===")
-            self.logger.clear_logs()  # Limpar logs anteriores
-            
-            # Validar arquivos de entrada
-            if not self.validate_input_files(saldos_path, resgates_path):
-                return {"success": False, "error": "Validação de arquivos falhou"}
-            
-            # Fase 1: Extração
-            saldos_df, resgates_df = self.extract_phase(saldos_path, resgates_path)
-            
-            # Fase 2: Transformação
-            transformed_data = self.transform_phase(saldos_df, resgates_df)
-            
-            # Fase 3: Carga
-            load_success = self.load_phase(transformed_data)
-            
+            self.logger.clear_logs()
+            self.results = {}
+            log_info("=== INICIANDO PIPELINE ETL DO EXTRATO ===")
+
+            if not self.validate_input_file(pdf_path):
+                return {"success": False, "error": "Validacao do arquivo falhou"}
+
+            self.update_progress("Carregando regras dinamicas", 1)
+            rules_dict = self.rules_engine.load_rules()
+            self.results["rules"] = {"count": len(rules_dict)}
+
+            extracted_df = self.extract_phase(pdf_path)
+            transformed_df = self.transform_phase(extracted_df, rules_dict)
+
+            load_success = self.load_phase(transformed_df)
             if not load_success:
                 return {"success": False, "error": "Falha na carga dos dados"}
-            
-            # Finalização
-            self.update_progress("Pipeline concluído", 7)
-            log_success("=== PIPELINE ETL CONCLUÍDO COM SUCESSO ===")
-            
-            # Preparar resultado final
-            result = {
+
+            self.update_progress("Pipeline concluido", 5)
+            log_success("=== PIPELINE ETL CONCLUIDO COM SUCESSO ===")
+
+            return {
                 "success": True,
                 "database_path": self.config.get_database_engine_url(),
                 "results": self.results,
-                "logs": self.logger.get_logs()
+                "logs": self.logger.get_logs(),
             }
-            
-            return result
-            
-        except Exception as e:
-            error_msg = f"Erro no pipeline ETL: {str(e)}"
+
+        except Exception as exc:
+            error_msg = f"Erro no pipeline ETL: {str(exc)}"
             log_critical(error_msg, traceback.format_exc())
-            
             return {
                 "success": False,
                 "error": error_msg,
                 "traceback": traceback.format_exc(),
-                "logs": self.logger.get_logs()
+                "logs": self.logger.get_logs(),
             }
-    
+
     def get_pipeline_status(self) -> Dict[str, Any]:
-        """Retorna o status atual do pipeline"""
+        """Retorna o status atual do pipeline."""
         return {
             "current_step": self.current_step,
             "progress": self.progress,
             "total_steps": self.total_steps,
-            "progress_percentage": round((self.progress / self.total_steps) * 100, 1),
-            "results": self.results
+            "progress_percentage": round((self.progress / self.total_steps) * 100, 1)
+            if self.total_steps
+            else 0,
+            "results": self.results,
         }
-    
-    def reset_pipeline(self):
-        """Reseta o estado do pipeline"""
+
+    def reset_pipeline(self) -> None:
+        """Reseta o estado do pipeline atual."""
         self.current_step = None
         self.progress = 0
         self.results = {}
@@ -228,31 +184,28 @@ class ETLPipeline:
         log_info("Pipeline resetado")
 
 
-# Instância global do pipeline
-etl_pipeline = ETLPipeline()
+def create_pipeline() -> ETLPipeline:
+    """Cria uma nova instancia do pipeline para uma execucao isolada."""
+    return ETLPipeline()
 
 
-# Função principal para manter compatibilidade
-def main(saldos_path: str = None, resgates_path: str = None):
-    """
-    Função principal adaptada do código original
-    """
-    if not saldos_path or not resgates_path:
-        # Usar caminhos padrão se não fornecidos
-        saldos_path = str(config.PROJECT_ROOT / "data_samples" / "base_operacional.csv")
-        resgates_path = str(config.PROJECT_ROOT / "data_samples" / "base_resgates.csv")
-    
-    result = etl_pipeline.run_pipeline(saldos_path, resgates_path)
-    
+def main(pdf_path: str | None = None) -> Dict[str, Any]:
+    """Funcao principal adaptada ao novo contrato com um unico PDF."""
+    pipeline = create_pipeline()
+
+    if not pdf_path:
+        pdf_path = str(config.DATA_SAMPLES_PATH / "extrato_exemplo_caixa.pdf")
+
+    result = pipeline.run_pipeline(pdf_path)
+
     if result["success"]:
-        print(f"Pipeline concluído com sucesso!")
+        print("Pipeline concluido com sucesso!")
         print(f"Banco de dados: {result['database_path']}")
     else:
         print(f"Pipeline falhou: {result['error']}")
-    
+
     return result
 
 
 if __name__ == "__main__":
     main()
-
