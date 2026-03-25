@@ -182,6 +182,8 @@ class CaixaExtractor(BaseExtractor):
 class BBExtractor(BaseExtractor):
     """Stateful extractor for Banco do Brasil statements."""
 
+    SALDO_DIARIO_HISTORY = "SALDO DIARIO"
+
     def __init__(self, bank_name: str, bank_rules: Dict[str, Any]) -> None:
         self.saldo_pattern = re.compile(bank_rules["padrao_linha_saldo"])
         super().__init__(bank_name, bank_rules)
@@ -196,16 +198,32 @@ class BBExtractor(BaseExtractor):
         saldo_match = self.saldo_pattern.match(line)
         if saldo_match:
             saldo_date = saldo_match.group(1)
-            day, month, year = saldo_date.split(".")
+            saldo_value = saldo_match.group(2)
+            saldo_type = saldo_match.group(3)
+            _, month, year = saldo_date.split(".")
             self.current_year = int(year)
             self.previous_month = int(month)
             log_info(
                 f"Linha de saldo BB identificada na pagina {page_number}, linha {line_number}"
             )
-            return None
+
+            row = self.create_base_row(page_number, line_number)
+            row.update(
+                {
+                    "data": saldo_date,
+                    "historico": self.SALDO_DIARIO_HISTORY,
+                    "saldo": saldo_value,
+                    "tipo_saldo": saldo_type,
+                }
+            )
+            return row
 
         movement_match = self.line_pattern.match(line)
         if not movement_match:
+            log_warning(
+                "Linha BB ignorada por nao corresponder a saldo ou movimento: "
+                f"pagina {page_number}, linha {line_number}: {line}"
+            )
             return None
 
         if self.current_year is None or self.previous_month is None:

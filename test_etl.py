@@ -75,24 +75,29 @@ class ExtractorFactoryTests(unittest.TestCase):
 
 
 class BBExtractorTests(unittest.TestCase):
-    def test_bb_extractor_builds_full_dates_and_rolls_year(self) -> None:
+    def test_bb_extractor_returns_saldo_rows_and_rolls_year(self) -> None:
         bank_rules = copy.deepcopy(RulesEngine.DEFAULT_RULES["BB"])
         bank_rules["bank_name"] = "BB"
         extractor = BBExtractor("BB", bank_rules)
 
         extracted_df = extractor.extract_from_lines(
             [
-                (1, 1, "Saldo em 31.12.2025"),
+                (1, 1, "Saldo em 31.12.2025 1.234,56 C"),
                 (1, 2, "31.12 100 ANOTACAO DE RESGATE EM FUNDO GARANT 1.234,56 C"),
                 (1, 3, "01.01 101 ATUALIZACAO DE REC APLICADOS 10,00 C"),
             ]
         )
 
-        self.assertEqual(len(extracted_df), 2)
+        self.assertEqual(len(extracted_df), 3)
         self.assertEqual(extracted_df.iloc[0]["data"], "31.12.2025")
-        self.assertEqual(extracted_df.iloc[1]["data"], "01.01.2026")
-        self.assertEqual(extracted_df.iloc[0]["documento"], "100")
-        self.assertEqual(extracted_df.iloc[1]["documento"], "101")
+        self.assertEqual(extracted_df.iloc[0]["historico"], "SALDO DIARIO")
+        self.assertIsNone(extracted_df.iloc[0]["valor"])
+        self.assertEqual(extracted_df.iloc[0]["saldo"], "1.234,56")
+        self.assertEqual(extracted_df.iloc[0]["tipo_saldo"], "C")
+        self.assertEqual(extracted_df.iloc[1]["data"], "31.12.2025")
+        self.assertEqual(extracted_df.iloc[2]["data"], "01.01.2026")
+        self.assertEqual(extracted_df.iloc[1]["documento"], "100")
+        self.assertEqual(extracted_df.iloc[2]["documento"], "101")
 
 
 class TransformerTests(unittest.TestCase):
@@ -126,6 +131,37 @@ class TransformerTests(unittest.TestCase):
         self.assertEqual(row["Banco"], "BB")
         self.assertTrue(pd.isna(row["Saldo"]))
         self.assertIsNone(row["Documento"])
+
+    def test_transformer_classifies_saldo_diario_event(self) -> None:
+        transformer = DataTransformer()
+        bank_rules = copy.deepcopy(RulesEngine.DEFAULT_RULES["BB"])
+        bank_rules["bank_name"] = "BB"
+
+        raw_df = pd.DataFrame(
+            [
+                {
+                    "data": "31.12.2025",
+                    "documento": None,
+                    "historico": "SALDO DIARIO",
+                    "valor": None,
+                    "tipo_valor": None,
+                    "saldo": "1.234,56",
+                    "tipo_saldo": "C",
+                    "banco": "BB",
+                    "pagina": 1,
+                    "linha": 1,
+                }
+            ]
+        )
+
+        transformed_df = transformer.apply_business_rules(raw_df, bank_rules)
+        row = transformed_df.iloc[0]
+
+        self.assertEqual(row["Data"], "2025-12-31")
+        self.assertEqual(row["Natureza_Operacao"], "Saldo Atualizado")
+        self.assertTrue(pd.isna(row["Valor"]))
+        self.assertEqual(row["Saldo"], 1234.56)
+        self.assertEqual(row["Tipo_Saldo"], "C")
 
 
 class PipelineTests(unittest.TestCase):

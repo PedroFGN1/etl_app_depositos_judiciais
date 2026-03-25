@@ -30,7 +30,7 @@ class RulesEngine:
             },
         },
         "BB": {
-            "padrao_linha_saldo": "^Saldo em (\\d{2}\\.\\d{2}\\.\\d{4})(?:\\s+[\\d\\.,]+\\s+[CD])?$",
+            "padrao_linha_saldo": "^Saldo em (\\d{2}\\.\\d{2}\\.\\d{4})\\s+([\\d\\.,]+)\\s+([CD])",
             "padrao_linha_movimento": (
                 r"^(\d{2}\.\d{2})\s+(\d+)?\s*(.+?)\s+([\d\.,]+)\s+([CD])$"
             ),
@@ -38,6 +38,7 @@ class RulesEngine:
             "rubricas": {
                 "ANOTACAO DE RESGATE EM FUNDO GARANT": "Resgate",
                 "ATUALIZACAO DE REC APLICADOS": "Rendimento",
+                "SALDO DIARIO": "Saldo Atualizado",
             },
         },
     }
