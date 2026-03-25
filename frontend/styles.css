@@ -444,7 +444,13 @@ body {
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
+    overflow-x: hidden;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.results-modal-content {
+    width: min(92vw, 860px);
+    max-width: 860px;
 }
 
 .modal-header {
@@ -542,7 +548,8 @@ body {
 .result-item {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 1rem;
     padding: 1rem;
     background: #f7fafc;
     border-radius: 8px;
@@ -550,13 +557,19 @@ body {
 }
 
 .result-label {
+    flex: 0 0 190px;
     font-weight: 600;
     color: #2d3748;
 }
 
 .result-value {
+    flex: 1 1 auto;
+    min-width: 0;
     color: #4a5568;
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    text-align: right;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 /* Responsive Design */
@@ -594,11 +607,30 @@ body {
         width: 95%;
         margin: 1rem;
     }
-    
+
+    .results-modal-content {
+        width: calc(100vw - 2rem);
+        max-width: calc(100vw - 2rem);
+    }
+
     .modal-header,
     .modal-body,
     .modal-footer {
         padding: 1rem;
+    }
+
+    .result-item {
+        flex-direction: column;
+    }
+
+    .result-label,
+    .result-value {
+        flex: none;
+        width: 100%;
+    }
+
+    .result-value {
+        text-align: left;
     }
 }
 
