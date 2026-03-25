@@ -1,235 +1,341 @@
-# Sistema ETL - Processamento de Dados Judiciais
+# Sistema ETL - Extratos Bancarios em PDF
 
-Sistema completo de ETL (Extract, Transform, Load) com interface web para processamento de dados de contas judiciais.
+Aplicacao ETL com interface web para processamento de extratos bancarios em PDF, com suporte atual para `CAIXA` e `BB`.
 
-## 🚀 Características
+O sistema extrai dados do PDF, aplica regras de classificacao por banco e grava o resultado em tabelas separadas no banco de dados configurado.
 
-- **Interface Web Moderna**: Frontend responsivo com upload de arquivos e terminal de logs colorido
-- **Backend Modularizado**: Código Python organizado em módulos especializados
-- **Suporte Multi-Banco**: SQLite, PostgreSQL, MySQL e SQL Server
-- **Logs em Tempo Real**: Terminal colorido com diferentes níveis de log
-- **Comunicação Eel**: Integração seamless entre Python e JavaScript
+## Visao geral
 
-## 📁 Estrutura do Projeto
+Estado atual do projeto:
 
+- entrada unica: `1` PDF de extrato bancario
+- selecao explicita do banco na interface: `CAIXA` ou `BB`
+- regras dirigidas por `output/regras_extrato.json`
+- schema transformado unificado para os bancos
+- carga em tabelas `Movimentacoes_<BANCO>`
+- interface com upload, progresso, logs e configuracao de banco
+
+No fluxo do Banco do Brasil, linhas de saldo tambem viram registros proprios com `Historico = SALDO DIARIO`.
+
+## Funcionalidades
+
+- Interface web com Eel
+- Upload de PDF via drag-and-drop
+- Pipeline ETL modularizado em `extract`, `transform` e `load`
+- Regras configuraveis por banco
+- Suporte a SQLite, PostgreSQL, MySQL e SQL Server
+- Logs em tempo real com filtro por nivel
+- Exportacao de logs pela interface
+- Testes automatizados para regras, extratores, transformacao e pipeline
+
+## Estrutura do projeto
+
+```text
+etl_app_depositos_judiciais/
+|-- backend/
+|   |-- __init__.py
+|   |-- config.py
+|   |-- logger.py
+|   |-- rules_engine.py
+|   |-- extractor.py
+|   |-- transformer.py
+|   |-- loader.py
+|   |-- etl_pipeline.py
+|   `-- eel_interface.py
+|-- frontend/
+|   |-- index.html
+|   |-- styles.css
+|   `-- app.js
+|-- data_samples/
+|-- docs/
+|-- output/
+|   `-- regras_extrato.json
+|-- uploads/
+|-- main.py
+|-- requirements.txt
+|-- test_etl.py
+`-- README.md
 ```
-etl_app/
-├── backend/                # Módulos Python
-│   ├── __init__.py
-│   ├── config.py           # Configurações flexíveis
-│   ├── logger.py           # Sistema de logging
-│   ├── extractor.py        # Extração de dados
-│   ├── transformer.py      # Transformação de dados
-│   ├── loader.py           # Carga no banco
-│   ├── etl_pipeline.py     # Orquestrador principal
-│   └── eel_interface.py    # Interface Eel
-├── frontend/               # Interface web
-│   ├── index.html          # Página principal
-│   ├── styles.css          # Estilos CSS
-│   └── app.js              # JavaScript
-├── data_samples/           # Arquivos de exemplo
-├── uploads/                # Arquivos enviados
-├── output/                 # Banco de dados gerado
-├── main.py                 # Arquivo principal
-├── requirements.txt        # Dependências
-└── README.md               # Esta documentação
+
+## Arquitetura
+
+O fluxo principal funciona assim:
+
+1. O usuario seleciona o banco e envia o PDF do extrato.
+2. A interface envia o arquivo para o backend via Eel.
+3. O `RulesEngine` carrega as regras do banco escolhido.
+4. O `ExtractorFactory` instancia o extrator apropriado:
+   - `CaixaExtractor`
+   - `BBExtractor`
+5. O `DataTransformer` padroniza e classifica os registros.
+6. O `DataLoader` persiste o resultado na tabela do banco correspondente.
+
+Tabelas de destino:
+
+- `Movimentacoes_CAIXA`
+- `Movimentacoes_BB`
+
+## Schema de saida
+
+O resultado transformado segue um schema comum:
+
+- `Data`
+- `Documento`
+- `Historico`
+- `Valor`
+- `Tipo_Valor`
+- `Saldo`
+- `Tipo_Saldo`
+- `Natureza_Operacao`
+- `Banco`
+- `Pagina`
+- `Linha`
+
+Convencoes atuais:
+
+- movimentacoes usam `Valor` e `Tipo_Valor`
+- eventos de saldo do BB usam `Saldo` e `Tipo_Saldo`
+- linhas de saldo do BB recebem `Historico = SALDO DIARIO`
+
+## Bancos suportados
+
+### CAIXA
+
+- extracao stateless
+- data completa presente na propria linha
+- classificacao baseada em rubricas configuradas
+
+### BB
+
+- extracao stateful
+- movimentacoes usam data curta `DD.MM`
+- linhas `Saldo em DD.MM.AAAA ...` atualizam a memoria de ano
+- essas mesmas linhas tambem geram registros independentes de saldo diario
+
+## Regras de extracao e classificacao
+
+As regras ficam em:
+
+```text
+output/regras_extrato.json
 ```
 
-## 🛠️ Instalação
+Cada banco possui:
 
-1. **Clone ou baixe o projeto**
-2. **Instale as dependências:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+- `padrao_linha_movimento`
+- `formato_data`
+- `rubricas`
+- `padrao_linha_saldo`, quando aplicavel
 
-3. **Execute a aplicação:**
-   ```bash
-   python main.py
-   ```
+Exemplo de rubrica especial do BB:
 
-4. **Acesse no navegador:**
-   ```
-   http://localhost:8080
-   ```
+- `SALDO DIARIO -> Saldo Atualizado`
 
-## 📊 Como Usar
+Importante:
 
-### 1. Upload de Arquivos
-- Clique ou arraste os arquivos de saldos e resgates
-- Formatos suportados: CSV, XLSX, XLS
-- O sistema valida automaticamente os arquivos
+- o matching de rubricas depende do texto real extraido do PDF
+- variacoes de acentuacao podem exigir ajuste no arquivo de regras
 
-### 2. Processamento ETL
-- Clique em "Iniciar Processamento ETL"
-- Acompanhe o progresso na barra de progresso
-- Monitore os logs no terminal colorido
+## Requisitos
 
-### 3. Configuração de Banco
-- Clique em "Configurações" para alterar o banco de dados
-- Suporte para SQLite (padrão), PostgreSQL, MySQL e SQL Server
-- Teste de conexão automático
+- Python 3.10+ recomendado
+- dependencias do `requirements.txt`
 
-## 🎨 Terminal de Logs
+Principais pacotes:
 
-O terminal possui logs coloridos por nível:
-- **DEBUG** (Cinza): Informações de depuração
-- **INFO** (Azul): Informações gerais
-- **SUCCESS** (Verde): Operações bem-sucedidas
-- **WARNING** (Amarelo): Avisos importantes
-- **ERROR** (Vermelho): Erros recuperáveis
-- **CRITICAL** (Roxo): Erros críticos
+- `eel`
+- `pandas`
+- `sqlalchemy`
+- `pdfplumber`
+- `psutil`
 
-## 🗄️ Configuração de Banco de Dados
+Drivers opcionais:
 
-### SQLite (Padrão)
+- PostgreSQL: `psycopg2-binary`
+- MySQL: `PyMySQL`
+- SQL Server: `pyodbc`
+
+## Instalacao
+
+### 1. Criar ambiente virtual
+
+No Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+### 2. Instalar dependencias
+
+```powershell
+pip install -r requirements.txt
+```
+
+### 3. Executar a aplicacao
+
+```powershell
+python main.py
+```
+
+Observacao:
+
+- a aplicacao usa Eel
+- `config.EEL_PORT` esta em `0`, entao a porta final pode ser dinamica
+- use o endereco exibido no terminal ao iniciar
+
+## Como usar
+
+1. Execute `python main.py`.
+2. Abra a interface no endereco informado pelo terminal.
+3. Selecione o banco do extrato:
+   - `CAIXA`
+   - `BB`
+4. Envie o PDF.
+5. Clique em `Iniciar Processamento ETL`.
+6. Acompanhe os logs e o progresso.
+7. Consulte o modal final com banco, tabela e quantidade de registros.
+
+## Configuracao de banco de dados
+
+Tipos suportados:
+
+- SQLite
+- PostgreSQL
+- MySQL
+- SQL Server
+
+### SQLite
+
+Configuracao padrao:
+
 ```python
-config.set_database_config('sqlite', path='./output/database.db')
+config.set_database_config("sqlite", path="./output/contas_judiciais.db")
 ```
 
 ### PostgreSQL
+
 ```python
-config.set_database_config('postgresql', 
-    host='localhost',
+config.set_database_config(
+    "postgresql",
+    host="localhost",
     port=5432,
-    database='etl_db',
-    username='postgres',
-    password='senha'
+    database="etl_db",
+    username="postgres",
+    password="senha",
 )
 ```
 
 ### MySQL
+
 ```python
-config.set_database_config('mysql',
-    host='localhost', 
+config.set_database_config(
+    "mysql",
+    host="localhost",
     port=3306,
-    database='etl_db',
-    username='root',
-    password='senha'
+    database="etl_db",
+    username="root",
+    password="senha",
 )
 ```
 
 ### SQL Server
+
 ```python
-config.set_database_config('sqlserver',
-    host='localhost',
-    port=1433, 
-    database='etl_db',
-    username='sa',
-    password='senha'
+config.set_database_config(
+    "sqlserver",
+    host="localhost",
+    port=1433,
+    database="etl_db",
+    username="sa",
+    password="senha",
 )
 ```
 
-## 📋 Formato dos Dados
+Tambem e possivel alterar a configuracao diretamente pela interface em `Configuracoes`.
 
-### Arquivo de Saldos
-Deve conter colunas com:
-- Identificação da conta judicial
-- Número da parcela  
-- Colunas de saldo por período (ex: "Saldo JANEIRO23")
+## Logs
 
-### Arquivo de Resgates
-Deve conter colunas com:
-- Número da conta judicial
-- Número da parcela
-- Datas de resgate
-- Valores monetários
+Niveis disponiveis:
 
-## 🔧 Desenvolvimento
+- `DEBUG`
+- `INFO`
+- `SUCCESS`
+- `WARNING`
+- `ERROR`
+- `CRITICAL`
 
-### Estrutura Modular
+Exemplos de eventos logados:
 
-O sistema foi desenvolvido com arquitetura modular:
+- validacao do PDF
+- carregamento das regras
+- linhas de saldo identificadas no BB
+- linhas ignoradas por nao casarem com o layout
+- estatisticas de transformacao
+- resultado da carga no banco
 
-- **config.py**: Configurações centralizadas e flexíveis
-- **logger.py**: Sistema de logging com cores e comunicação Eel
-- **extractor.py**: Extração de dados de múltiplos formatos
-- **transformer.py**: Transformações e limpeza de dados
-- **loader.py**: Carga em diferentes tipos de banco
-- **etl_pipeline.py**: Orquestração do processo completo
-- **eel_interface.py**: Comunicação entre Python e JavaScript
+## Testes
 
-### Adicionando Novos Bancos
+Para executar a suite automatizada:
 
-Para adicionar suporte a um novo banco:
-
-1. Adicione a configuração em `config.py`:
-```python
-'novo_banco': {
-    'driver': 'driver_sqlalchemy',
-    'engine_template': 'driver://user:pass@host:port/db'
-}
+```powershell
+python -m unittest -v test_etl.py
 ```
 
-2. Instale o driver correspondente
-3. Teste a conexão
+Cobertura atual:
 
-### Personalizando Transformações
+- carregamento e validacao das regras multi-banco
+- `ExtractorFactory`
+- virada de ano do `BBExtractor`
+- evento `SALDO DIARIO`
+- transformacao do schema unificado
+- smoke test da CAIXA
+- falha controlada quando o layout nao corresponde ao banco selecionado
 
-As transformações podem ser customizadas no arquivo `transformer.py`:
+## Solucao de problemas
 
-```python
-def custom_transform(self, df: pd.DataFrame) -> pd.DataFrame:
-    # Sua lógica de transformação aqui
-    return df
-```
+### O PDF nao e aceito
 
-## 🚨 Solução de Problemas
+Verifique:
 
-### Erro de Dependências
-```bash
-pip install --upgrade -r requirements.txt
-```
+- se o arquivo tem extensao `.pdf`
+- se `pdfplumber` esta instalado
 
-### Erro de Conexão com Banco
-- Verifique as credenciais na configuração
-- Teste a conectividade de rede
-- Confirme se o driver está instalado
+### O processamento falha no BB
 
-### Arquivos Não Reconhecidos
-- Verifique o formato (CSV, XLSX, XLS)
-- Confirme a codificação (UTF-8 recomendado)
-- Verifique se as colunas esperadas existem
+Verifique:
 
-## 📝 Logs e Debugging
+- se o banco selecionado e realmente `BB`
+- se `padrao_linha_movimento` e `padrao_linha_saldo` refletem o layout atual do PDF
+- se as rubricas do BB no JSON batem com o texto extraido
 
-- Logs são salvos em tempo real no terminal
-- Use o filtro para visualizar logs específicos
-- Exporte logs para arquivo quando necessário
-- Nível DEBUG mostra informações detalhadas
+### Muitas linhas saem como `Desconhecido`
 
-## 🔒 Segurança
+Atualize as rubricas em `output/regras_extrato.json`.
 
-- Arquivos são salvos temporariamente durante o processamento
-- Limpeza automática de arquivos temporários
-- Validação de tipos de arquivo
-- Sanitização de nomes de arquivo
+### Erro de conexao com banco
 
-## 📈 Performance
+Verifique:
 
-- Processamento otimizado com pandas
-- Carregamento em lote para bancos de dados
-- Validação prévia de dados
-- Feedback de progresso em tempo real
+- credenciais
+- driver instalado
+- acesso de rede
+- permissao para criar ou substituir tabelas
 
-## 🤝 Contribuição
+## Arquivos importantes
 
-Para contribuir com o projeto:
+- `main.py`: ponto de entrada
+- `backend/etl_pipeline.py`: orquestracao do ETL
+- `backend/extractor.py`: extratores por banco
+- `backend/rules_engine.py`: regras de extracao e classificacao
+- `backend/transformer.py`: padronizacao do schema
+- `backend/loader.py`: carga no banco
+- `output/regras_extrato.json`: regras runtime
+- `test_etl.py`: testes automatizados
 
-1. Faça um fork do repositório
-2. Crie uma branch para sua feature
-3. Implemente as mudanças
-4. Teste thoroughly
-5. Submeta um pull request
+## Documentacao complementar
 
-## 📄 Licença
+- `Sistema ETL - Instruções de Instalação e Uso.md`
+- arquivos em `docs/`
 
-Este projeto está sob licença MIT. Veja o arquivo LICENSE para detalhes.
-
-## 🆘 Suporte
-
-Para suporte técnico:
-- Verifique os logs no terminal
-- Consulte esta documentação
-- Reporte issues com logs detalhados
-
+---
