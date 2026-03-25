@@ -84,7 +84,7 @@ class AppConfig:
         # Configurações de upload
         self.UPLOAD_FOLDER = self.PROJECT_ROOT / "uploads"
         self.MAX_FILE_SIZE = 150 * 1024 * 1024  # 150MB
-        self.ALLOWED_EXTENSIONS = {'.csv', '.xlsx', '.xls'}
+        self.ALLOWED_EXTENSIONS = {'.pdf'}
         
         # Nomes das tabelas no Data Warehouse
         self.TABLE_CONTAS = "Contas"

@@ -1,12 +1,11 @@
-// Global variables
 let uploadedFiles = {
     extrato: null
 };
 
-let currentFilter = 'all';
+let currentFilter = "all";
 let logs = [];
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener("DOMContentLoaded", function() {
     initializeApp();
 });
 
@@ -17,94 +16,89 @@ function initializeApp() {
     setupLogFilter();
 
     addLogMessage({
-        timestamp: new Date().toLocaleString('pt-BR'),
-        level: 'INFO',
-        color: '#17a2b8',
-        message: 'Sistema ETL inicializado. Aguardando o PDF do extrato para processamento.',
-        details: ''
+        timestamp: new Date().toLocaleString("pt-BR"),
+        level: "INFO",
+        color: "#17a2b8",
+        message: "Sistema ETL inicializado. Selecione o banco e envie o PDF do extrato.",
+        details: ""
     });
 }
 
 function setupSinglePdfMode() {
-    const uploadHeaders = document.querySelectorAll('.upload-header h3');
-    if (uploadHeaders[0]) uploadHeaders[0].textContent = 'PDF do Extrato';
-    if (uploadHeaders[1]) uploadHeaders[1].textContent = 'Slot desativado';
-
-    const placeholders = document.querySelectorAll('.upload-placeholder p');
-    if (placeholders[0]) placeholders[0].textContent = 'Clique ou arraste o PDF do extrato aqui';
-    if (placeholders[1]) placeholders[1].textContent = 'Este slot nao e usado no novo fluxo';
-
-    const hints = document.querySelectorAll('.upload-placeholder small');
-    if (hints[0]) hints[0].textContent = 'Formato aceito: PDF';
-    if (hints[1]) hints[1].textContent = 'Nenhum arquivo necessario';
-
-    const sectionHeader = document.querySelector('.upload-section .section-header p');
-    if (sectionHeader) sectionHeader.textContent = 'Selecione o PDF de extrato para processamento ETL';
-
-    const resgatesCard = document.querySelectorAll('.upload-card')[1];
+    const resgatesCard = document.querySelectorAll(".upload-card")[1];
     if (resgatesCard) {
-        resgatesCard.style.opacity = '0.45';
-        resgatesCard.style.pointerEvents = 'none';
+        resgatesCard.classList.add("disabled-card");
     }
 
-    const resgatesInput = document.getElementById('resgatesFile');
-    if (resgatesInput) resgatesInput.disabled = true;
+    const resgatesInput = document.getElementById("resgatesFile");
+    if (resgatesInput) {
+        resgatesInput.disabled = true;
+    }
 }
 
 function setupFileUploads() {
-    setupFileUpload('saldos', 'extrato');
+    setupFileUpload("saldos", "extrato");
 }
 
 function setupFileUpload(domType, logicalType) {
     const uploadArea = document.getElementById(`${domType}Upload`);
     const fileInput = document.getElementById(`${domType}File`);
-    if (!uploadArea || !fileInput) return;
+    if (!uploadArea || !fileInput) {
+        return;
+    }
 
-    fileInput.setAttribute('accept', '.pdf');
+    fileInput.setAttribute("accept", ".pdf");
 
-    uploadArea.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => {
-        handleFileSelect(logicalType, domType, e.target.files[0]);
+    uploadArea.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (event) => {
+        handleFileSelect(logicalType, domType, event.target.files[0]);
     });
 
-    uploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        uploadArea.classList.add('dragover');
+    uploadArea.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        uploadArea.classList.add("dragover");
     });
 
-    uploadArea.addEventListener('dragleave', () => {
-        uploadArea.classList.remove('dragover');
+    uploadArea.addEventListener("dragleave", () => {
+        uploadArea.classList.remove("dragover");
     });
 
-    uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove('dragover');
+    uploadArea.addEventListener("drop", (event) => {
+        event.preventDefault();
+        uploadArea.classList.remove("dragover");
 
-        const files = e.dataTransfer.files;
+        const files = event.dataTransfer.files;
         if (files.length > 0) {
             handleFileSelect(logicalType, domType, files[0]);
         }
     });
 }
 
-function handleFileSelect(logicalType, domType, file) {
-    if (!file) return;
+function getSelectedBank() {
+    const selector = document.getElementById("bank_selector");
+    return selector ? selector.value : "";
+}
 
-    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-    if (fileExtension !== '.pdf') {
+function handleFileSelect(logicalType, domType, file) {
+    if (!file) {
+        return;
+    }
+
+    const fileExtension = `.${file.name.split(".").pop().toLowerCase()}`;
+    if (fileExtension !== ".pdf") {
         addLogMessage({
-            timestamp: new Date().toLocaleString('pt-BR'),
-            level: 'ERROR',
-            color: '#dc3545',
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "ERROR",
+            color: "#dc3545",
             message: `Formato de arquivo nao suportado: ${fileExtension}`,
-            details: 'Formato aceito: .pdf'
+            details: "Formato aceito: .pdf"
         });
         return;
     }
 
     const reader = new FileReader();
     reader.onload = async function(event) {
-        const base64data = event.target.result.split(',')[1];
+        const base64data = event.target.result.split(",")[1];
         const uploadResult = await eel.upload_file(file.name, base64data)();
 
         if (uploadResult.success) {
@@ -113,17 +107,17 @@ function handleFileSelect(logicalType, domType, file) {
             updateProcessButton();
 
             addLogMessage({
-                timestamp: new Date().toLocaleString('pt-BR'),
-                level: 'SUCCESS',
-                color: '#28a745',
+                timestamp: new Date().toLocaleString("pt-BR"),
+                level: "SUCCESS",
+                color: "#28a745",
                 message: `PDF carregado e enviado: ${file.name}`,
                 details: `Tamanho: ${formatFileSize(file.size)}`
             });
         } else {
             addLogMessage({
-                timestamp: new Date().toLocaleString('pt-BR'),
-                level: 'ERROR',
-                color: '#dc3545',
+                timestamp: new Date().toLocaleString("pt-BR"),
+                level: "ERROR",
+                color: "#dc3545",
                 message: `Erro ao enviar PDF: ${file.name}`,
                 details: uploadResult.error
             });
@@ -137,24 +131,26 @@ function updateFileInfo(domType, file) {
     const uploadArea = document.getElementById(`${domType}Upload`);
     const fileInfo = document.getElementById(`${domType}Info`);
 
-    uploadArea.style.display = 'none';
-    fileInfo.style.display = 'flex';
+    uploadArea.style.display = "none";
+    fileInfo.style.display = "flex";
 
-    fileInfo.querySelector('.file-name').textContent = file.name;
-    fileInfo.querySelector('.file-size').textContent = formatFileSize(file.size);
+    fileInfo.querySelector(".file-name").textContent = file.name;
+    fileInfo.querySelector(".file-size").textContent = formatFileSize(file.size);
 }
 
 async function removeFile(type) {
-    const logicalType = type === 'saldos' ? 'extrato' : type;
+    const logicalType = type === "saldos" ? "extrato" : type;
     const fileToRemove = uploadedFiles[logicalType];
-    if (!fileToRemove) return;
+    if (!fileToRemove) {
+        return;
+    }
 
     const deleteResult = await eel.delete_uploaded_file(fileToRemove.name)();
     if (!deleteResult.success) {
         addLogMessage({
-            timestamp: new Date().toLocaleString('pt-BR'),
-            level: 'ERROR',
-            color: '#dc3545',
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "ERROR",
+            color: "#dc3545",
             message: `Erro ao remover PDF: ${fileToRemove.name}`,
             details: deleteResult.error
         });
@@ -164,52 +160,79 @@ async function removeFile(type) {
     resetSelectedFile();
 
     addLogMessage({
-        timestamp: new Date().toLocaleString('pt-BR'),
-        level: 'INFO',
-        color: '#17a2b8',
-        message: 'PDF removido',
-        details: ''
+        timestamp: new Date().toLocaleString("pt-BR"),
+        level: "INFO",
+        color: "#17a2b8",
+        message: "PDF removido",
+        details: ""
     });
 }
 
 function resetSelectedFile() {
     uploadedFiles.extrato = null;
 
-    const uploadArea = document.getElementById('saldosUpload');
-    const fileInfo = document.getElementById('saldosInfo');
-    const fileInput = document.getElementById('saldosFile');
+    const uploadArea = document.getElementById("saldosUpload");
+    const fileInfo = document.getElementById("saldosInfo");
+    const fileInput = document.getElementById("saldosFile");
 
-    uploadArea.style.display = 'block';
-    fileInfo.style.display = 'none';
-    fileInput.value = '';
+    uploadArea.style.display = "block";
+    fileInfo.style.display = "none";
+    fileInput.value = "";
     updateProcessButton();
 }
 
 function updateProcessButton() {
-    const processBtn = document.getElementById('processBtn');
-    const hasPdf = uploadedFiles.extrato;
+    const processBtn = document.getElementById("processBtn");
+    const hasPdf = Boolean(uploadedFiles.extrato);
+    const hasBank = Boolean(getSelectedBank());
 
-    processBtn.disabled = !hasPdf;
-    processBtn.innerHTML = hasPdf
-        ? '<i class="fas fa-play"></i> Iniciar Processamento ETL'
-        : '<i class="fas fa-upload"></i> Selecione o PDF primeiro';
+    processBtn.disabled = !(hasPdf && hasBank);
+
+    if (hasPdf && hasBank) {
+        processBtn.innerHTML = '<i class="fas fa-play"></i> Iniciar Processamento ETL';
+        return;
+    }
+
+    if (!hasBank) {
+        processBtn.innerHTML = '<i class="fas fa-landmark"></i> Selecione o banco do extrato';
+        return;
+    }
+
+    processBtn.innerHTML = '<i class="fas fa-upload"></i> Selecione o PDF do extrato';
 }
 
 function setupEventListeners() {
-    document.getElementById('processBtn').addEventListener('click', startETLProcess);
-    document.getElementById('clearLogsBtn').addEventListener('click', clearLogs);
-    document.getElementById('configBtn').addEventListener('click', () => {
-        openModal('configModal');
+    document.getElementById("processBtn").addEventListener("click", startETLProcess);
+    document.getElementById("clearLogsBtn").addEventListener("click", clearLogs);
+    document.getElementById("configBtn").addEventListener("click", () => {
+        openModal("configModal");
         loadDatabaseConfig();
     });
-    document.getElementById('exportLogsBtn').addEventListener('click', exportLogs);
-    document.getElementById('dbType').addEventListener('change', updateDatabaseConfig);
+    document.getElementById("exportLogsBtn").addEventListener("click", exportLogs);
+    document.getElementById("dbType").addEventListener("change", updateDatabaseConfig);
+    document.getElementById("bank_selector").addEventListener("change", onBankChange);
+}
+
+function onBankChange(event) {
+    updateProcessButton();
+
+    if (!event.target.value) {
+        return;
+    }
+
+    addLogMessage({
+        timestamp: new Date().toLocaleString("pt-BR"),
+        level: "INFO",
+        color: "#17a2b8",
+        message: `Banco selecionado: ${event.target.value}`,
+        details: ""
+    });
 }
 
 function setupLogFilter() {
-    const logFilter = document.getElementById('logFilter');
-    logFilter.addEventListener('change', (e) => {
-        currentFilter = e.target.value;
+    const logFilter = document.getElementById("logFilter");
+    logFilter.addEventListener("change", (event) => {
+        currentFilter = event.target.value;
         filterLogs();
     });
 }
@@ -217,58 +240,70 @@ function setupLogFilter() {
 async function startETLProcess() {
     if (!uploadedFiles.extrato) {
         addLogMessage({
-            timestamp: new Date().toLocaleString('pt-BR'),
-            level: 'ERROR',
-            color: '#dc3545',
-            message: 'Selecione o PDF do extrato antes de iniciar o processamento',
-            details: ''
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "ERROR",
+            color: "#dc3545",
+            message: "Selecione o PDF do extrato antes de iniciar o processamento",
+            details: ""
         });
         return;
     }
 
-    const processBtn = document.getElementById('processBtn');
+    const bankName = getSelectedBank();
+    if (!bankName) {
+        addLogMessage({
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "ERROR",
+            color: "#dc3545",
+            message: "Selecione o banco do extrato antes de iniciar o processamento",
+            details: ""
+        });
+        return;
+    }
+
+    const processBtn = document.getElementById("processBtn");
     processBtn.disabled = true;
     processBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
 
-    const progressSection = document.getElementById('progressSection');
-    progressSection.style.display = 'block';
+    const progressSection = document.getElementById("progressSection");
+    progressSection.style.display = "block";
 
     try {
         clearLogs();
         addLogMessage({
-            timestamp: new Date().toLocaleString('pt-BR'),
-            level: 'INFO',
-            color: '#17a2b8',
-            message: 'Iniciando processamento ETL...',
-            details: 'Preparando PDF do extrato'
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "INFO",
+            color: "#17a2b8",
+            message: "Iniciando processamento ETL...",
+            details: `Banco selecionado: ${bankName}`
         });
 
-        const result = await eel.start_etl_process(uploadedFiles.extrato.name)();
+        const result = await eel.start_etl_process(uploadedFiles.extrato.name, bankName)();
         if (result.success) {
-            updateProgress('Processamento concluido', 100);
+            updateProgress("Processamento concluido", 100);
             addLogMessage({
-                timestamp: new Date().toLocaleString('pt-BR'),
-                level: 'SUCCESS',
-                color: '#28a745',
-                message: 'Processamento ETL concluido com sucesso!',
-                details: `Banco de dados: ${result.database_path}`
+                timestamp: new Date().toLocaleString("pt-BR"),
+                level: "SUCCESS",
+                color: "#28a745",
+                message: "Processamento ETL concluido com sucesso!",
+                details: `Banco: ${result.bank_name} | Tabela: ${result.table_name}`
             });
             showResults(result);
         } else {
             addLogMessage({
-                timestamp: new Date().toLocaleString('pt-BR'),
-                level: 'ERROR',
-                color: '#dc3545',
-                message: 'Erro no processamento ETL',
+                timestamp: new Date().toLocaleString("pt-BR"),
+                level: "ERROR",
+                color: "#dc3545",
+                message: "Erro no processamento ETL",
                 details: result.error
             });
         }
     } catch (error) {
         addLogMessage({
-            timestamp: new Date().toLocaleString('pt-BR'),
-            level: 'CRITICAL',
-            color: '#6f42c1',
-            message: 'Erro critico no processamento',
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "CRITICAL",
+            color: "#6f42c1",
+            message: "Erro critico no processamento",
             details: error.toString()
         });
     } finally {
@@ -276,42 +311,44 @@ async function startETLProcess() {
         resetSelectedFile();
 
         setTimeout(() => {
-            progressSection.style.display = 'none';
-            updateProgress('Preparando...', 0);
+            progressSection.style.display = "none";
+            updateProgress("Preparando...", 0);
         }, 3000);
     }
 }
 
 function updateProgress(text, percent) {
-    document.getElementById('progressText').textContent = text;
-    document.getElementById('progressPercent').textContent = `${percent}%`;
-    document.getElementById('progressFill').style.width = `${percent}%`;
+    document.getElementById("progressText").textContent = text;
+    document.getElementById("progressPercent").textContent = `${percent}%`;
+    document.getElementById("progressFill").style.width = `${percent}%`;
 }
 
 function addLogMessage(logEntry) {
     logs.push(logEntry);
 
-    if (currentFilter === 'all' || currentFilter === logEntry.level) {
+    if (currentFilter === "all" || currentFilter === logEntry.level) {
         displayLogEntry(logEntry);
     }
 
-    const logTerminal = document.getElementById('logTerminal');
+    const logTerminal = document.getElementById("logTerminal");
     logTerminal.scrollTop = logTerminal.scrollHeight;
 }
 
 function displayLogEntry(logEntry) {
-    const logTerminal = document.getElementById('logTerminal');
-    const welcome = logTerminal.querySelector('.log-welcome');
-    if (welcome) welcome.remove();
+    const logTerminal = document.getElementById("logTerminal");
+    const welcome = logTerminal.querySelector(".log-welcome");
+    if (welcome) {
+        welcome.remove();
+    }
 
-    const logElement = document.createElement('div');
-    logElement.className = 'log-entry';
+    const logElement = document.createElement("div");
+    logElement.className = "log-entry";
     logElement.innerHTML = `
         <span class="log-timestamp">${logEntry.timestamp}</span>
         <span class="log-level ${logEntry.level}" style="color: ${logEntry.color}">${logEntry.level}</span>
         <div class="log-content">
             <div class="log-message ${logEntry.level}" style="color: ${logEntry.color}">${logEntry.message}</div>
-            ${logEntry.details ? `<div class="log-details">${logEntry.details}</div>` : ''}
+            ${logEntry.details ? `<div class="log-details">${logEntry.details}</div>` : ""}
         </div>
     `;
 
@@ -319,22 +356,22 @@ function displayLogEntry(logEntry) {
 }
 
 function filterLogs() {
-    const logTerminal = document.getElementById('logTerminal');
-    logTerminal.innerHTML = '';
+    const logTerminal = document.getElementById("logTerminal");
+    logTerminal.innerHTML = "";
 
     if (logs.length === 0) {
         logTerminal.innerHTML = `
             <div class="log-welcome">
                 <i class="fas fa-info-circle"></i>
-                <p>Terminal de logs pronto. Selecione o PDF e inicie o processamento.</p>
+                <p>Terminal de logs pronto. Selecione o banco, envie o PDF e inicie o processamento.</p>
             </div>
         `;
         return;
     }
 
-    const filteredLogs = currentFilter === 'all'
+    const filteredLogs = currentFilter === "all"
         ? logs
-        : logs.filter(log => log.level === currentFilter);
+        : logs.filter((log) => log.level === currentFilter);
 
     if (filteredLogs.length === 0) {
         logTerminal.innerHTML = `
@@ -346,12 +383,12 @@ function filterLogs() {
         return;
     }
 
-    filteredLogs.forEach(log => displayLogEntry(log));
+    filteredLogs.forEach((log) => displayLogEntry(log));
 }
 
 function clearLogs() {
     logs = [];
-    document.getElementById('logTerminal').innerHTML = `
+    document.getElementById("logTerminal").innerHTML = `
         <div class="log-welcome">
             <i class="fas fa-info-circle"></i>
             <p>Terminal de logs limpo. Pronto para novos logs.</p>
@@ -362,42 +399,44 @@ function clearLogs() {
 function exportLogs() {
     if (logs.length === 0) {
         addLogMessage({
-            timestamp: new Date().toLocaleString('pt-BR'),
-            level: 'WARNING',
-            color: '#ffc107',
-            message: 'Nenhum log disponivel para exportacao',
-            details: ''
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "WARNING",
+            color: "#ffc107",
+            message: "Nenhum log disponivel para exportacao",
+            details: ""
         });
         return;
     }
 
-    const logText = logs.map(log => {
+    const logText = logs.map((log) => {
         let text = `[${log.timestamp}] ${log.level}: ${log.message}`;
-        if (log.details) text += `\n    Detalhes: ${log.details}`;
+        if (log.details) {
+            text += `\n    Detalhes: ${log.details}`;
+        }
         return text;
-    }).join('\n\n');
+    }).join("\n\n");
 
-    const blob = new Blob([logText], { type: 'text/plain' });
+    const blob = new Blob([logText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `etl_logs_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `etl_logs_${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
 
     addLogMessage({
-        timestamp: new Date().toLocaleString('pt-BR'),
-        level: 'SUCCESS',
-        color: '#28a745',
-        message: 'Logs exportados com sucesso',
-        details: `Arquivo: ${a.download}`
+        timestamp: new Date().toLocaleString("pt-BR"),
+        level: "SUCCESS",
+        color: "#28a745",
+        message: "Logs exportados com sucesso",
+        details: `Arquivo: ${anchor.download}`
     });
 }
 
 function showResults(result) {
-    const resultsContent = document.getElementById('resultsContent');
+    const resultsContent = document.getElementById("resultsContent");
     const stats = result.results || {};
 
     resultsContent.innerHTML = `
@@ -407,25 +446,29 @@ function showResults(result) {
                 <span class="result-value" style="color: #28a745;">Sucesso</span>
             </div>
             <div class="result-item">
+                <span class="result-label">Banco:</span>
+                <span class="result-value">${result.bank_name}</span>
+            </div>
+            <div class="result-item">
                 <span class="result-label">Banco de Dados:</span>
                 <span class="result-value">${result.database_path}</span>
             </div>
             ${stats.extraction ? `
                 <div class="result-item">
                     <span class="result-label">Movimentacoes Extraidas:</span>
-                    <span class="result-value">${stats.extraction.rows.toLocaleString('pt-BR')}</span>
+                    <span class="result-value">${stats.extraction.rows.toLocaleString("pt-BR")}</span>
                 </div>
-            ` : ''}
+            ` : ""}
             ${stats.transformation ? `
                 <div class="result-item">
                     <span class="result-label">Classificadas:</span>
-                    <span class="result-value">${stats.transformation.classified_rows.toLocaleString('pt-BR')}</span>
+                    <span class="result-value">${stats.transformation.classified_rows.toLocaleString("pt-BR")}</span>
                 </div>
                 <div class="result-item">
                     <span class="result-label">Desconhecidas:</span>
-                    <span class="result-value">${stats.transformation.unknown_rows.toLocaleString('pt-BR')}</span>
+                    <span class="result-value">${stats.transformation.unknown_rows.toLocaleString("pt-BR")}</span>
                 </div>
-            ` : ''}
+            ` : ""}
             ${stats.load ? `
                 <div class="result-item">
                     <span class="result-label">Tabela Carregada:</span>
@@ -433,27 +476,27 @@ function showResults(result) {
                 </div>
                 <div class="result-item">
                     <span class="result-label">Total de Registros:</span>
-                    <span class="result-value">${stats.load.total_records.toLocaleString('pt-BR')}</span>
+                    <span class="result-value">${stats.load.total_records.toLocaleString("pt-BR")}</span>
                 </div>
-            ` : ''}
+            ` : ""}
         </div>
     `;
 
-    openModal('resultsModal');
+    openModal("resultsModal");
 }
 
 function loadDatabaseConfig() {
-    document.getElementById('dbType').value = 'sqlite';
+    document.getElementById("dbType").value = "sqlite";
     updateDatabaseConfig();
 }
 
 function updateDatabaseConfig() {
-    const dbType = document.getElementById('dbType').value;
-    const dbConfig = document.getElementById('dbConfig');
-    let configHTML = '';
+    const dbType = document.getElementById("dbType").value;
+    const dbConfig = document.getElementById("dbConfig");
+    let configHTML = "";
 
     switch (dbType) {
-        case 'sqlite':
+        case "sqlite":
             configHTML = `
                 <div class="form-group">
                     <label for="dbPath">Caminho do Banco:</label>
@@ -461,7 +504,7 @@ function updateDatabaseConfig() {
                 </div>
             `;
             break;
-        case 'postgresql':
+        case "postgresql":
             configHTML = `
                 <div class="form-group"><label for="dbHost">Host:</label><input type="text" id="dbHost" class="form-control" value="localhost"></div>
                 <div class="form-group"><label for="dbPort">Porta:</label><input type="number" id="dbPort" class="form-control" value="5432"></div>
@@ -470,7 +513,7 @@ function updateDatabaseConfig() {
                 <div class="form-group"><label for="dbPassword">Senha:</label><input type="password" id="dbPassword" class="form-control"></div>
             `;
             break;
-        case 'mysql':
+        case "mysql":
             configHTML = `
                 <div class="form-group"><label for="dbHost">Host:</label><input type="text" id="dbHost" class="form-control" value="localhost"></div>
                 <div class="form-group"><label for="dbPort">Porta:</label><input type="number" id="dbPort" class="form-control" value="3306"></div>
@@ -479,7 +522,7 @@ function updateDatabaseConfig() {
                 <div class="form-group"><label for="dbPassword">Senha:</label><input type="password" id="dbPassword" class="form-control"></div>
             `;
             break;
-        case 'sqlserver':
+        case "sqlserver":
             configHTML = `
                 <div class="form-group"><label for="dbHost">Host:</label><input type="text" id="dbHost" class="form-control" value="localhost"></div>
                 <div class="form-group"><label for="dbPort">Porta:</label><input type="number" id="dbPort" class="form-control" value="1433"></div>
@@ -494,59 +537,62 @@ function updateDatabaseConfig() {
 }
 
 async function saveConfig() {
-    const dbType = document.getElementById('dbType').value;
-    let config = { type: dbType };
+    const dbType = document.getElementById("dbType").value;
+    const config = { type: dbType };
 
     switch (dbType) {
-        case 'sqlite':
-            config.path = document.getElementById('dbPath').value;
+        case "sqlite":
+            config.path = document.getElementById("dbPath").value;
             break;
-        case 'postgresql':
-        case 'mysql':
-        case 'sqlserver':
-            config.host = document.getElementById('dbHost').value;
-            config.port = parseInt(document.getElementById('dbPort').value);
-            config.database = document.getElementById('dbName').value;
-            config.username = document.getElementById('dbUser').value;
-            config.password = document.getElementById('dbPassword').value;
+        case "postgresql":
+        case "mysql":
+        case "sqlserver":
+            config.host = document.getElementById("dbHost").value;
+            config.port = parseInt(document.getElementById("dbPort").value, 10);
+            config.database = document.getElementById("dbName").value;
+            config.username = document.getElementById("dbUser").value;
+            config.password = document.getElementById("dbPassword").value;
             break;
     }
 
     try {
         await eel.update_database_config(config)();
         addLogMessage({
-            timestamp: new Date().toLocaleString('pt-BR'),
-            level: 'SUCCESS',
-            color: '#28a745',
-            message: 'Configuracao de banco de dados atualizada',
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "SUCCESS",
+            color: "#28a745",
+            message: "Configuracao de banco de dados atualizada",
             details: `Tipo: ${dbType}`
         });
-        closeModal('configModal');
+        closeModal("configModal");
     } catch (error) {
         addLogMessage({
-            timestamp: new Date().toLocaleString('pt-BR'),
-            level: 'ERROR',
-            color: '#dc3545',
-            message: 'Erro ao salvar configuracao',
+            timestamp: new Date().toLocaleString("pt-BR"),
+            level: "ERROR",
+            color: "#dc3545",
+            message: "Erro ao salvar configuracao",
             details: error.toString()
         });
     }
 }
 
 function openModal(modalId) {
-    document.getElementById(modalId).style.display = 'flex';
+    document.getElementById(modalId).style.display = "flex";
 }
 
 function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
+    document.getElementById(modalId).style.display = "none";
 }
 
 function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    if (bytes === 0) {
+        return "0 Bytes";
+    }
+
+    const unit = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const index = Math.floor(Math.log(bytes) / Math.log(unit));
+    return `${parseFloat((bytes / Math.pow(unit, index)).toFixed(2))} ${sizes[index]}`;
 }
 
 eel.expose(add_log_message);

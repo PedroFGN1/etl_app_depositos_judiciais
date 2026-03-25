@@ -55,17 +55,18 @@ eel_interface = EelInterface()
 
 
 @eel.expose
-def start_etl_process(pdf_filename: str) -> Dict[str, Any]:
+def start_etl_process(pdf_filename: str, bank_name: str) -> Dict[str, Any]:
     """
     Inicia o processamento ETL com um unico PDF de extrato.
     """
     try:
         log_info("Recebida solicitacao de processamento ETL do extrato")
         log_info(f"Arquivo PDF informado: {pdf_filename}")
+        log_info(f"Banco selecionado: {bank_name}")
 
         pdf_path = eel_interface.resolve_uploaded_file(pdf_filename)
         eel_interface.current_pipeline = create_pipeline()
-        result = eel_interface.current_pipeline.run_pipeline(str(pdf_path))
+        result = eel_interface.current_pipeline.run_pipeline(str(pdf_path), bank_name)
         return result
 
     except Exception as exc:

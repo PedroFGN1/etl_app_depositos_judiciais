@@ -120,6 +120,11 @@ body {
     transition: all 0.3s ease;
 }
 
+.upload-card.disabled-card {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
 .upload-card:hover {
     border-color: #667eea;
     transform: translateY(-2px);

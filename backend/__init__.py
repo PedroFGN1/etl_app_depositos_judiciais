@@ -5,7 +5,7 @@ Modulos para processamento ETL de extratos bancarios em PDF.
 
 from .config import AppConfig, DatabaseConfig, config
 from .etl_pipeline import ETLPipeline, create_pipeline, main
-from .extractor import DataExtractor, extract_data
+from .extractor import BBExtractor, BaseExtractor, CaixaExtractor, ExtractorFactory, extract_data
 from .loader import data_loader, load_data
 from .logger import (
     etl_logger,
@@ -19,7 +19,7 @@ from .logger import (
 from .rules_engine import RulesEngine
 from .transformer import DataTransformer, apply_business_rules
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 __author__ = "ETL Team"
 
 __all__ = [
@@ -33,7 +33,10 @@ __all__ = [
     "log_warning",
     "log_debug",
     "log_critical",
-    "DataExtractor",
+    "BaseExtractor",
+    "CaixaExtractor",
+    "BBExtractor",
+    "ExtractorFactory",
     "extract_data",
     "DataTransformer",
     "apply_business_rules",
