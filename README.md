@@ -1,341 +1,129 @@
-# Sistema ETL - Extratos Bancarios em PDF
+# Sistema ETL - Extratos Bancários de Depósitos Judiciais
 
-Aplicacao ETL com interface web para processamento de extratos bancarios em PDF, com suporte atual para `CAIXA` e `BB`.
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-orange.svg)
 
-O sistema extrai dados do PDF, aplica regras de classificacao por banco e grava o resultado em tabelas separadas no banco de dados configurado.
+Esta é uma aplicação de **Engenharia de Dados** voltada para o processamento de extratos bancários de depósitos judiciais em formato PDF. O sistema foi projetado para atender ao rigor necessário em auditorias financeiras governamentais (Estado de GO vs. Bancos Públicos), garantindo a precisão "centavo por centavo".
 
-## Visao geral
+O ecossistema realiza a extração, transformação e carga (ETL) de dados brutos inconsistentes, convertendo-os em esquemas estruturados e unificados para análise e auditoria.
 
-Estado atual do projeto:
+## 📋 Visão Geral
 
-- entrada unica: `1` PDF de extrato bancario
-- selecao explicita do banco na interface: `CAIXA` ou `BB`
-- regras dirigidas por `output/regras_extrato.json`
-- schema transformado unificado para os bancos
-- carga em tabelas `Movimentacoes_<BANCO>`
-- interface com upload, progresso, logs e configuracao de banco
+O projeto resolve o desafio de consolidar fontes de dados distintas (Caixa Econômica Federal e Banco do Brasil) que possuem layouts de extratos frequentemente mal formatados e sem metadados padronizados.
 
-No fluxo do Banco do Brasil, linhas de saldo tambem viram registros proprios com `Historico = SALDO DIARIO`.
+### Principais Diferenciais:
+- **Resiliência de Dados:** Tratamento robusto para PDFs/CSVs com inconsistências estruturais.
+- **Rigor Matemático:** Lógica de processamento focada na integridade absoluta dos valores para fins de auditoria.
+- **Arquitetura Modular:** Separação clara entre extração, regras de negócio e persistência.
+- **Interface Amigável:** Operação simplificada via interface web (Eel) com feedback em tempo real.
 
-## Funcionalidades
+---
 
-- Interface web com Eel
-- Upload de PDF via drag-and-drop
-- Pipeline ETL modularizado em `extract`, `transform` e `load`
-- Regras configuraveis por banco
-- Suporte a SQLite, PostgreSQL, MySQL e SQL Server
-- Logs em tempo real com filtro por nivel
-- Exportacao de logs pela interface
-- Testes automatizados para regras, extratores, transformacao e pipeline
+## 🚀 Funcionalidades
 
-## Estrutura do projeto
+- **Interface Web:** Interface intuitiva desenvolvida com Eel.
+- **Upload Inteligente:** Suporte a *drag-and-drop* para arquivos PDF.
+- **Pipeline ETL Modular:** Fluxo desacoplado em `extract`, `transform` e `load`.
+- **Motor de Regras (Rules Engine):** Regras de classificação e extração configuráveis via JSON.
+- **Multi-Banco:** Suporte nativo para SQLite, PostgreSQL, MySQL e SQL Server.
+- **Observabilidade:** Logs detalhados em tempo real com níveis de severidade e opção de exportação.
+- **Garantia de Qualidade:** Suíte de testes automatizados para validadores, extratores e transformadores.
+
+---
+
+## 📂 Estrutura do Projeto
 
 ```text
 etl_app_depositos_judiciais/
-|-- backend/
-|   |-- __init__.py
-|   |-- config.py
-|   |-- logger.py
-|   |-- rules_engine.py
-|   |-- extractor.py
-|   |-- transformer.py
-|   |-- loader.py
-|   |-- etl_pipeline.py
-|   `-- eel_interface.py
-|-- frontend/
-|   |-- index.html
-|   |-- styles.css
-|   `-- app.js
-|-- data_samples/
-|-- docs/
-|-- output/
-|   `-- regras_extrato.json
-|-- uploads/
-|-- main.py
-|-- requirements.txt
-|-- test_etl.py
-`-- README.md
+├── backend/                # Núcleo de processamento e lógica de negócio
+│   ├── extractor.py        # Extratores específicos (Caixa e BB)
+│   ├── transformer.py      # Padronização de esquemas e tipos de dados
+│   ├── rules_engine.py     # Motor de classificação baseado em rubricas
+│   ├── loader.py           # Interface de persistência em banco de dados
+│   └── etl_pipeline.py     # Orquestrador do fluxo ETL
+├── frontend/               # Interface web (HTML/CSS/JS)
+├── data_samples/           # Amostras de dados para teste e validação
+├── docs/                   # Documentação técnica e planos de melhoria
+├── main.py                 # Ponto de entrada da aplicação
+├── requirements.txt        # Dependências do sistema
+└── test_etl.py             # Testes unitários e de integração
 ```
 
-## Arquitetura
+---
 
-O fluxo principal funciona assim:
+## 🛠️ Arquitetura e Fluxo de Dados
 
-1. O usuario seleciona o banco e envia o PDF do extrato.
-2. A interface envia o arquivo para o backend via Eel.
-3. O `RulesEngine` carrega as regras do banco escolhido.
-4. O `ExtractorFactory` instancia o extrator apropriado:
-   - `CaixaExtractor`
-   - `BBExtractor`
-5. O `DataTransformer` padroniza e classifica os registros.
-6. O `DataLoader` persiste o resultado na tabela do banco correspondente.
+O sistema opera sob um fluxo de processamento dirigido por regras:
 
-Tabelas de destino:
+1. **Entrada:** O usuário seleciona a instituição financeira e realiza o upload do PDF.
+2. **Extração:** O `ExtractorFactory` identifica o extrator adequado (`CaixaExtractor` ou `BBExtractor`).
+   - *Nota:* O extrator do BB é *stateful*, gerenciando a persistência de ano em datas curtas (`DD.MM`).
+3. **Transformação:** O `DataTransformer` aplica o esquema unificado, tratando tipagem e normalização de valores.
+4. **Carga:** O `DataLoader` persiste os dados nas tabelas correspondentes (`Movimentacoes_CAIXA` ou `Movimentacoes_BB`).
 
-- `Movimentacoes_CAIXA`
-- `Movimentacoes_BB`
+### Esquema de Saída Unificado
+| Campo | Descrição |
+| :--- | :--- |
+| `Data` | Data da operação (formato ISO) |
+| `Documento` | Número do documento/autenticação |
+| `Historico` | Descrição da transação ou rubrica |
+| `Valor` | Valor nominal da movimentação |
+| `Tipo_Valor` | C (Crédito) ou D (Débito) |
+| `Saldo` | Saldo remanescente após a operação |
+| `Natureza_Operacao` | Classificação auditável da transação |
 
-## Schema de saida
+---
 
-O resultado transformado segue um schema comum:
+## 🔧 Instalação e Uso
 
-- `Data`
-- `Documento`
-- `Historico`
-- `Valor`
-- `Tipo_Valor`
-- `Saldo`
-- `Tipo_Saldo`
-- `Natureza_Operacao`
-- `Banco`
-- `Pagina`
-- `Linha`
+### Pré-requisitos
+- Python 3.10 ou superior.
+- Navegador moderno (Chrome/Edge recomendado para Eel).
 
-Convencoes atuais:
+### Passo a Passo
 
-- movimentacoes usam `Valor` e `Tipo_Valor`
-- eventos de saldo do BB usam `Saldo` e `Tipo_Saldo`
-- linhas de saldo do BB recebem `Historico = SALDO DIARIO`
+1. **Clonar o repositório:**
+   ```bash
+   git clone https://github.com/PedroFGN1/etl_app_depositos_judiciais.git
+   cd etl_app_depositos_judiciais
+   ```
 
-## Bancos suportados
+2. **Configurar o ambiente virtual:**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # Linux/macOS
+   # ou
+   .\venv\Scripts\Activate.ps1 # Windows
+   ```
 
-### CAIXA
+3. **Instalar dependências:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-- extracao stateless
-- data completa presente na propria linha
-- classificacao baseada em rubricas configuradas
+4. **Executar a aplicação:**
+   ```bash
+   python main.py
+   ```
 
-### BB
+---
 
-- extracao stateful
-- movimentacoes usam data curta `DD.MM`
-- linhas `Saldo em DD.MM.AAAA ...` atualizam a memoria de ano
-- essas mesmas linhas tambem geram registros independentes de saldo diario
+## 🧪 Testes
 
-## Regras de extracao e classificacao
+Para garantir a integridade do processamento, execute a suíte de testes:
 
-As regras ficam em:
-
-```text
-output/regras_extrato.json
-```
-
-Cada banco possui:
-
-- `padrao_linha_movimento`
-- `formato_data`
-- `rubricas`
-- `padrao_linha_saldo`, quando aplicavel
-
-Exemplo de rubrica especial do BB:
-
-- `SALDO DIARIO -> Saldo Atualizado`
-
-Importante:
-
-- o matching de rubricas depende do texto real extraido do PDF
-- variacoes de acentuacao podem exigir ajuste no arquivo de regras
-
-## Requisitos
-
-- Python 3.10+ recomendado
-- dependencias do `requirements.txt`
-
-Principais pacotes:
-
-- `eel`
-- `pandas`
-- `sqlalchemy`
-- `pdfplumber`
-- `psutil`
-
-Drivers opcionais:
-
-- PostgreSQL: `psycopg2-binary`
-- MySQL: `PyMySQL`
-- SQL Server: `pyodbc`
-
-## Instalacao
-
-### 1. Criar ambiente virtual
-
-No Windows PowerShell:
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-```
-
-### 2. Instalar dependencias
-
-```powershell
-pip install -r requirements.txt
-```
-
-### 3. Executar a aplicacao
-
-```powershell
-python main.py
-```
-
-Observacao:
-
-- a aplicacao usa Eel
-- `config.EEL_PORT` esta em `0`, entao a porta final pode ser dinamica
-- use o endereco exibido no terminal ao iniciar
-
-## Como usar
-
-1. Execute `python main.py`.
-2. Abra a interface no endereco informado pelo terminal.
-3. Selecione o banco do extrato:
-   - `CAIXA`
-   - `BB`
-4. Envie o PDF.
-5. Clique em `Iniciar Processamento ETL`.
-6. Acompanhe os logs e o progresso.
-7. Consulte o modal final com banco, tabela e quantidade de registros.
-
-## Configuracao de banco de dados
-
-Tipos suportados:
-
-- SQLite
-- PostgreSQL
-- MySQL
-- SQL Server
-
-### SQLite
-
-Configuracao padrao:
-
-```python
-config.set_database_config("sqlite", path="./output/contas_judiciais.db")
-```
-
-### PostgreSQL
-
-```python
-config.set_database_config(
-    "postgresql",
-    host="localhost",
-    port=5432,
-    database="etl_db",
-    username="postgres",
-    password="senha",
-)
-```
-
-### MySQL
-
-```python
-config.set_database_config(
-    "mysql",
-    host="localhost",
-    port=3306,
-    database="etl_db",
-    username="root",
-    password="senha",
-)
-```
-
-### SQL Server
-
-```python
-config.set_database_config(
-    "sqlserver",
-    host="localhost",
-    port=1433,
-    database="etl_db",
-    username="sa",
-    password="senha",
-)
-```
-
-Tambem e possivel alterar a configuracao diretamente pela interface em `Configuracoes`.
-
-## Logs
-
-Niveis disponiveis:
-
-- `DEBUG`
-- `INFO`
-- `SUCCESS`
-- `WARNING`
-- `ERROR`
-- `CRITICAL`
-
-Exemplos de eventos logados:
-
-- validacao do PDF
-- carregamento das regras
-- linhas de saldo identificadas no BB
-- linhas ignoradas por nao casarem com o layout
-- estatisticas de transformacao
-- resultado da carga no banco
-
-## Testes
-
-Para executar a suite automatizada:
-
-```powershell
+```bash
 python -m unittest -v test_etl.py
 ```
 
-Cobertura atual:
-
-- carregamento e validacao das regras multi-banco
-- `ExtractorFactory`
-- virada de ano do `BBExtractor`
-- evento `SALDO DIARIO`
-- transformacao do schema unificado
-- smoke test da CAIXA
-- falha controlada quando o layout nao corresponde ao banco selecionado
-
-## Solucao de problemas
-
-### O PDF nao e aceito
-
-Verifique:
-
-- se o arquivo tem extensao `.pdf`
-- se `pdfplumber` esta instalado
-
-### O processamento falha no BB
-
-Verifique:
-
-- se o banco selecionado e realmente `BB`
-- se `padrao_linha_movimento` e `padrao_linha_saldo` refletem o layout atual do PDF
-- se as rubricas do BB no JSON batem com o texto extraido
-
-### Muitas linhas saem como `Desconhecido`
-
-Atualize as rubricas em `output/regras_extrato.json`.
-
-### Erro de conexao com banco
-
-Verifique:
-
-- credenciais
-- driver instalado
-- acesso de rede
-- permissao para criar ou substituir tabelas
-
-## Arquivos importantes
-
-- `main.py`: ponto de entrada
-- `backend/etl_pipeline.py`: orquestracao do ETL
-- `backend/extractor.py`: extratores por banco
-- `backend/rules_engine.py`: regras de extracao e classificacao
-- `backend/transformer.py`: padronizacao do schema
-- `backend/loader.py`: carga no banco
-- `output/regras_extrato.json`: regras runtime
-- `test_etl.py`: testes automatizados
-
-## Documentacao complementar
-
-- `Sistema ETL - Instruções de Instalação e Uso.md`
-- arquivos em `docs/`
+A cobertura inclui validação de virada de ano (BB), processamento de rubricas especiais, consistência do schema unificado e testes de falha controlada para layouts incompatíveis.
 
 ---
+
+## ⚖️ Licença
+
+Este projeto está licenciado sob a licença MIT - consulte o arquivo [LICENSE](LICENSE) para detalhes.
+
+---
+> **Atenção:** Este software foi desenvolvido para suporte à auditoria financeira. Sempre valide os resultados finais com os documentos originais antes de tomar decisões governamentais ou jurídicas.
